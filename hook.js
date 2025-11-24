@@ -1,5 +1,7 @@
 (() => {
-    // 1) Находим GameManager (GM)
+    /* -------------------------------------
+       1) НАХОДИМ GameManager (GM)
+    ------------------------------------- */
     let GM = null;
     for (const s of clicker.scene.scenes) {
         if (s.c && s.c.e) {
@@ -8,17 +10,22 @@
         }
     }
     if (!GM) {
-        console.error("[LS-UI] GM не найден");
+        console.error("[LS-UI] Не удалось найти GameManager");
         return;
     }
 
-    // Если панель уже есть — не дублируем
-    if (document.getElementById("ls-cheat-panel")) {
-        console.log("[LS-UI] Панель уже существует");
+    /* -------------------------------------
+       2) ПРОВЕРКА: уже создана?
+    ------------------------------------- */
+    if (window.__LS_UI_ACTIVE__) {
+        console.log("[LS-UI] UI уже открыт");
         return;
     }
+    window.__LS_UI_ACTIVE__ = true;
 
-    // 2) Создаём панель
+    /* -------------------------------------
+       3) СОЗДАЁМ ПАНЕЛЬ
+    ------------------------------------- */
     const panel = document.createElement("div");
     panel.id = "ls-cheat-panel";
     panel.style.cssText = `
@@ -28,173 +35,226 @@
         z-index: 999999;
         background: rgba(10, 10, 20, 0.95);
         color: #fff;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-        font-size: 12px;
         padding: 10px;
         border-radius: 8px;
-        box-shadow: 0 0 12px rgba(0,0,0,0.7);
+        font-size: 12px;
+        font-family: system-ui;
         display: flex;
         flex-direction: column;
         gap: 6px;
-        min-width: 170px;
+        min-width: 180px;
+        cursor: default;
     `;
 
-    const title = document.createElement("div");
-    title.textContent = "LS Debug UI";
-    title.style.cssText = "font-weight:600;margin-bottom:4px;font-size:12px;text-align:center;";
-    panel.appendChild(title);
+    let collapsed = false;
+
+    /* -------------------------------------
+       4) ПЕРЕТАСКИВАНИЕ ПАНЕЛИ
+    ------------------------------------- */
+    panel.onmousedown = (e) => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
+
+        let shiftX = e.clientX - panel.getBoundingClientRect().left;
+        let shiftY = e.clientY - panel.getBoundingClientRect().top;
+        function move(e) {
+            panel.style.left = e.pageX - shiftX + "px";
+            panel.style.top = e.pageY - shiftY + "px";
+            panel.style.right = "auto";
+        }
+        document.onmousemove = move;
+        document.onmouseup = () => (document.onmousemove = null);
+    };
+
+    /* -------------------------------------
+       5) СВЕРНУТЬ / РАЗВЕРНУТЬ
+    ------------------------------------- */
+    const collapseBtn = document.createElement("div");
+    collapseBtn.textContent = "LS Debug UI ▼";
+    collapseBtn.style.cssText = `
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 4px;
+        cursor: pointer;
+    `;
+    collapseBtn.onclick = () => {
+        collapsed = !collapsed;
+        collapseBtn.textContent = collapsed ? "LS Debug UI ▲" : "LS Debug UI ▼";
+        content.style.display = collapsed ? "none" : "flex";
+    };
+    panel.appendChild(collapseBtn);
+
+    const content = document.createElement("div");
+    content.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+    panel.appendChild(content);
+
+    /* -------------------------------------
+       6) ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+    ------------------------------------- */
+    function addToggle(name, callback) {
+        const wrap = document.createElement("div");
+        wrap.style = "display:flex;justify-content:space-between;align-items:center;";
+        const label = document.createElement("span");
+        label.textContent = name;
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        toggle.onchange = (e) => callback(e.target.checked);
+        wrap.appendChild(label);
+        wrap.appendChild(toggle);
+        content.appendChild(wrap);
+        return toggle;
+    }
 
     function addButton(label, onClick) {
         const btn = document.createElement("button");
         btn.textContent = label;
         btn.style.cssText = `
-            padding: 4px 6px;
-            border-radius: 4px;
-            border: 1px solid #444;
-            background: #222;
-            color: #fff;
-            cursor: pointer;
-            font-size: 11px;
-            text-align: left;
+            padding: 4px;
+            background:#222;
+            color:#fff;
+            border:1px solid #444;
+            border-radius:4px;
+            cursor:pointer;
+            text-align:left;
         `;
         btn.onmouseenter = () => (btn.style.background = "#333");
         btn.onmouseleave = () => (btn.style.background = "#222");
         btn.onclick = onClick;
-        panel.appendChild(btn);
+        content.appendChild(btn);
         return btn;
     }
 
-    document.body.appendChild(panel);
-    console.log("[LS-UI] Панель добавлена");
+    /* -------------------------------------
+       7) Реалтайм статус сверху
+    ------------------------------------- */
+    const status = document.createElement("div");
+    status.style.cssText = `
+        background:#111;
+        padding:5px;
+        border-radius:4px;
+        font-size:11px;
+        line-height:14px;
+        opacity:.9;
+    `;
+    content.appendChild(status);
 
-    // 3) Автокликер
+    setInterval(() => {
+        status.innerHTML = `
+            Coins: ${GM.e.coins.toLocaleString()}<br>
+            Energy: ${GM.e.energy} / ${GM.e.energyMax}<br>
+            Click power: ${GM.e.clickPower}<br>
+            Autoclick: ${GM.e.autoclickPower}/s
+        `;
+    }, 250);
+
+    /* -------------------------------------
+       8) АВТОКЛИКЕР
+    ------------------------------------- */
     let autoClickInterval = null;
-    addButton("Автоклик ON/OFF", () => {
-        if (autoClickInterval) {
+    addToggle("Autoclick", (enabled) => {
+        if (enabled) {
+            autoClickInterval = setInterval(() => GM.click(), 30);
+        } else {
             clearInterval(autoClickInterval);
             autoClickInterval = null;
-            console.log("[LS-UI] Автоклик выключен");
-        } else {
-            autoClickInterval = setInterval(() => {
-                try {
-                    GM.click();
-                } catch (e) {
-                    console.error("[LS-UI] Ошибка автоклика", e);
-                }
-            }, 20); // ~50 вызовов/сек
-            console.log("[LS-UI] Автоклик включен");
         }
     });
 
-    // 4) Клик x100 (перехват GM.click)
-    addButton("Клик x100 ON/OFF", () => {
-        if (!GM._origClick) {
-            GM._origClick = GM.click.bind(GM);
-            GM.click = function () {
-                for (let i = 0; i < 100; i++) {
-                    GM._origClick();
-                }
+    /* -------------------------------------
+       9) КЛИК ×100 (перехват GM.click)
+    ------------------------------------- */
+    addToggle("Click ×100", (enabled) => {
+        if (enabled) {
+            GM.__origClick = GM.click.bind(GM);
+            GM.click = () => {
+                for (let i = 0; i < 100; i++) GM.__origClick();
                 return true;
             };
-            console.log("[LS-UI] Клик x100 активирован");
-        } else {
-            GM.click = GM._origClick;
-            GM._origClick = null;
-            console.log("[LS-UI] Клик x100 отключён (оригинал восстановлен)");
+        } else if (GM.__origClick) {
+            GM.click = GM.__origClick;
+            GM.__origClick = null;
         }
     });
 
-    // Вспомогательная функция: купить все апгрейды определённого типа
+    /* -------------------------------------
+       10) АПГРЕЙДЫ — ФУЛЛ АВТО ПОКУПКА
+    ------------------------------------- */
     async function buyAllUpgrades(type) {
         try {
-            const items = GM.K(type); // type: 'click' | 'autoclick' | 'energy'
-            if (!Array.isArray(items)) {
-                console.warn("[LS-UI] GM.K вернул что-то странное для типа", type, items);
+            // 1) Получаем список групп
+            const groups = GM.K(type);
+    
+            if (!Array.isArray(groups)) {
+                console.warn("[LS-UI] GM.K(", type, ") не дал группы:", groups);
                 return;
             }
-
-            const upgrades = items.filter(it => it.isUpgrade && it.upgrade);
-            console.log(`[LS-UI] Нашёл ${upgrades.length} апгрейдов типа '${type}'`);
-
-            for (const item of upgrades) {
-                const upg = item.upgrade;
-                // Пока можно купить — жмём
-                while (GM.n(upg)) {
-                    console.log("[LS-UI] Покупаю", type, "lvl", upg.level, "price", upg.price);
-                    try {
-                        const ok = await GM.p0(upg);
-                        if (!ok) break;
-                    } catch (e) {
-                        console.error("[LS-UI] Ошибка при покупке апгрейда", upg, e);
-                        break;
+    
+            console.log("[LS-UI] Найдено групп:", groups.length, "для", type);
+    
+            // 2) Обходим все группы по одной
+            for (const groupItem of groups) {
+                if (!groupItem.isUpgradeGroup || !groupItem.upgradeGroup) continue;
+    
+                const groupId = groupItem.upgradeGroup.id;
+    
+                // 3) Получаем конкретную группу с её апгрейдами
+                const items = GM.K(type, groupId);
+    
+                const upgrades = items.filter(it => it.isUpgrade && it.upgrade);
+    
+                console.log(`[LS-UI] Группа ${groupId}: ${upgrades.length} апгрейдов`);
+    
+                // 4) Покупаем каждый апгрейд
+                for (const item of upgrades) {
+                    const upg = item.upgrade;
+    
+                    while (GM.n(upg)) {
+                        console.log("[LS-UI] Покупка", type, "lvl", upg.level, "price", upg.price);
+    
+                        try {
+                            const ok = await GM.p0(upg);
+                            if (!ok) break;
+                        } catch (err) {
+                            console.error("[LS-UI] Ошибка при p0()", upg, err);
+                            break;
+                        }
                     }
                 }
             }
-            console.log(`[LS-UI] Покупка '${type}'-апгрейдов завершена`);
+    
+            console.log("[LS-UI] Полное улучшение", type, "завершено");
+    
         } catch (e) {
             console.error("[LS-UI] Ошибка buyAllUpgrades(", type, ")", e);
         }
     }
 
-    // 5) Кнопки апгрейдов
-    addButton("Макс клики (апгрейды)", () => {
-        (async () => {
-            await buyAllUpgrades("click");
-        })();
-    });
+    addButton("Max Click upgrades", () => buyAllUpgrades("click"));
+    addButton("Max Autoclick upgrades", () => buyAllUpgrades("autoclick"));
+    addButton("Max Energy upgrades", () => buyAllUpgrades("energy"));
 
-    addButton("Макс автоклик (апгрейды)", () => {
-        (async () => {
-            await buyAllUpgrades("autoclick");
-        })();
-    });
-
-    addButton("Макс энергия (апгрейды)", () => {
-        (async () => {
-            await buyAllUpgrades("energy");
-        })();
-    });
-
-    // 6) Бонусы (легально, через v0)
+    
+    /* -------------------------------------
+       11) БОНУСЫ
+    ------------------------------------- */
     async function buyAllBonuses() {
-        try {
-            const items = GM.K("bonus");
-            if (!Array.isArray(items)) {
-                console.warn("[LS-UI] GM.K('bonus') вернул что-то странное", items);
-                return;
-            }
-            const bonuses = items.filter(it => it.isBonus && it.bonus);
-            console.log(`[LS-UI] Нашёл ${bonuses.length} бонусов`);
+        const items = GM.K("bonus");
+        const bonuses = items.filter(x => x.isBonus && x.bonus);
 
-            for (const item of bonuses) {
-                const bonus = item.bonus;
-                // Пока сервер считает, что можно купить — покупаем
-                while (GM.D(bonus)) {
-                    console.log("[LS-UI] Покупаю бонус", bonus.name, "id", bonus.id);
-                    const res = await GM.v0(bonus);
-                    if (!res || !res.success) {
-                        console.log("[LS-UI] Сервер не дал купить дальше", res);
-                        break;
-                    }
-                }
+        for (const item of bonuses) {
+            const bonus = item.bonus;
+            while (GM.D(bonus)) {
+                const result = await GM.v0(bonus);
+                if (!result || !result.success) break;
             }
-            console.log("[LS-UI] Покупка бонусов завершена");
-        } catch (e) {
-            console.error("[LS-UI] Ошибка buyAllBonuses", e);
         }
     }
 
-    addButton("Купить все бонусы", () => {
-        (async () => {
-            await buyAllBonuses();
-        })();
-    });
+    addButton("Buy all bonuses", () => buyAllBonuses());
 
-    // 7) Лёгкий локальный буст (чисто пофаниться, может не сохраниться)
-    addButton("+100k монет (локально)", () => {
-        GM.e.coins += 100000;
-        if (GM.emit) GM.emit("coins.changed", GM.e.coins);
-        console.log("[LS-UI] Локально добавлено 100k coins, текущее:", GM.e.coins);
-    });
+    /* -------------------------------------
+       12) ГОТОВО
+    ------------------------------------- */
+    document.body.appendChild(panel);
+    console.log("[LS-UI] Панель загружена");
 
 })();
