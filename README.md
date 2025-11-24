@@ -37,7 +37,8 @@
 
 Панель появляется справа:
 
-<img width="198" height="292" alt="изображение" src="https://github.com/user-attachments/assets/71b19e20-eaad-49b7-95dc-98a6c5c0a89e" />
+<img width="191" height="279" alt="изображение" src="https://github.com/user-attachments/assets/8ad0273f-e37b-4b05-8503-24bab29499d3" />
+
 
 
 ---
